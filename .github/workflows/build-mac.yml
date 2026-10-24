@@ -1,0 +1,50 @@
+
+name: Build Twilight Princess HD Mac
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: brew install cmake ninja
+
+      - name: Generate stub code
+        run: python3 tools/recomp/stubgen.py build/gen-stub
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/rel -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWWHD_RENDERER=METAL \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
+            -DGEN_DIR="$PWD/build/gen-stub" \
+            -DWWHD_SETUP_GUI=ON \
+            -DWWHD_BUNDLED_ZSTD=ON
+
+      - name: Build
+        run: cmake --build build/rel --parallel 4
+
+      - name: Package
+        run: |
+          python3 tools/release/package.py \
+            --build build/rel \
+            --platform macos-arm64 \
+            --version 0.1.0 \
+            --out build/dist \
+            --toolchain xcode-clt \
+            --setup-gui build/rel/wwhd-setup
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twilight-Princess-HD-Mac
+          path: build/dist/*.zip
+          if-no-files-found: error
